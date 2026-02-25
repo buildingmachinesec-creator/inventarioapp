@@ -6,27 +6,18 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: Build APK with Buildozer
-      run: |
-        docker run --rm \
-        -v ${{ github.workspace }}:/home/user/hostcwd \
-        -w /home/user/hostcwd \
-        kivy/buildozer:latest \
-        bash -c "
-        python3 -m venv venv &&
-        . venv/bin/activate &&
-        pip install --upgrade pip buildozer &&
-        buildozer android debug
-        "
+    - name: Build APK
+      uses: docker://ghcr.io/kivy/buildozer:stable
+      with:
+        args: buildozer android debug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: apk
+        name: InventarioAPK
         path: bin/*.apk
