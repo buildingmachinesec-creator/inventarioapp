@@ -11,15 +11,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Build APK (run buildozer as non-root user)
+    - name: Build APK (no prompt, non-root)
       uses: docker://kivy/buildozer:latest
       with:
-        args: >
-          bash -lc "
+        entrypoint: /bin/bash
+        args: -lc "
           useradd -m builder &&
           chown -R builder:builder /github/workspace &&
-          su builder -c 'buildozer android debug'
-          "
+          su builder -c 'BUILDOZER_ALLOW_ROOT=1 buildozer android debug'
+        "
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
