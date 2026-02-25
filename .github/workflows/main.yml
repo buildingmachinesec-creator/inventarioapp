@@ -31,27 +31,27 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython
 
-    # 🔥 EL TRUCO MAESTRO: Preparamos el terreno para Buildozer
+    # 🔥 EL TRUCO MAESTRO: Ahora sí con el --sdk_root que pidió
     - name: Setup Android SDK manually for Buildozer
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         mkdir -p $ANDROID_HOME/cmdline-tools
         
-        # 1. Descargamos las herramientas oficiales modernas
+        # 1. Descargamos las herramientas
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
         unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
         mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
         rm cmdline-tools.zip
         
-        # 2. Creamos los "enlaces falsos" para engañar a Buildozer
+        # 2. Creamos los "enlaces falsos" para Buildozer
         mkdir -p $ANDROID_HOME/tools
         ln -s $ANDROID_HOME/cmdline-tools/latest/bin $ANDROID_HOME/tools/bin
         ln -s $ANDROID_HOME/cmdline-tools/latest/lib $ANDROID_HOME/tools/lib
         
-        # 3. Aceptamos las licencias por adelantado
-        yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses
+        # 3. Aceptamos las licencias (CORREGIDO: le decimos explícitamente dónde está el root)
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
 
-    # 🚀 Compilamos (sin el yes | porque ya lo resolvimos arriba)
+    # 🚀 Compilamos
     - name: Build APK
       run: buildozer -v android debug
       env:
