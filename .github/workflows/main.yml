@@ -13,7 +13,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
 
-    - name: Install dependencies
+    - name: Install system packages
       run: |
         sudo apt update
         sudo apt install -y python3-pip git zip unzip autoconf libtool \
@@ -26,31 +26,28 @@ jobs:
         distribution: temurin
         java-version: 17
 
-    - name: Install Buildozer
+    - name: Install Python tools
       run: |
         pip install --upgrade pip
         pip install buildozer cython
 
-    - name: Install Android SDK (FIX REAL)
+    - name: Install Android SDK (FIX FINAL)
       run: |
-        mkdir -p $HOME/android-sdk
-        cd $HOME/android-sdk
+        export ANDROID_HOME=$HOME/android-sdk
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        cd $ANDROID_HOME
+
         wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
-        unzip tools.zip
-        mkdir cmdline-tools
-        mv cmdline-tools $HOME/android-sdk/cmdline-tools/latest || true
-        mv cmdline-tools $HOME/android-sdk/cmdline-tools/latest || true
-        mv cmdline-tools $HOME/android-sdk/cmdline-tools/latest 2>/dev/null || true
+        unzip -q tools.zip
+        mv cmdline-tools latest
+        mv latest $ANDROID_HOME/cmdline-tools/
 
-        echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+        echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
 
-        yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-        $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager \
-          "platform-tools" \
-          "platforms;android-34" \
-          "build-tools;34.0.0"
+        yes | sdkmanager --licenses
+        sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
     - name: Build APK
       run: |
