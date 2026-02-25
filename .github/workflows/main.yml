@@ -29,15 +29,13 @@ jobs:
     - name: Install Buildozer and Cython
       run: |
         pip install --upgrade pip
-        pip install "buildozer==1.5.0" cython  # Forzamos una versión estable de buildozer
+        pip install buildozer cython
 
     - name: Build APK
       run: |
-        # Este comando acepta las licencias de Android automáticamente
-        # y corre el proceso en modo debug para ver todo el log
-        yes | buildozer -v android debug
+        # Ejecutamos buildozer directamente para poder ver el error real si falla
+        buildozer -v android debug
       env:
-        # Esto ayuda a que el motor de Android no pida interacción manual
         TERM: xterm
 
     - name: Upload APK
