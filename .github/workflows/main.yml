@@ -11,10 +11,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Build with Kivy Buildozer
-      uses: kivy/buildozer-action@v1
+    - name: Build APK with official Buildozer container
+      uses: docker://kivy/buildozer:latest
       with:
-        buildozer_version: stable
+        args: buildozer android debug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
