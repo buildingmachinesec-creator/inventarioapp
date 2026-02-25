@@ -31,41 +31,42 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython
 
-    - name: Install Android SDK & Command Line Tools
+    - name: Install Android SDK & Fix Path for Buildozer
       run: |
-        # Definir rutas
+        # Definir la ruta donde Buildozer espera el SDK
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         mkdir -p $ANDROID_HOME/cmdline-tools
         cd $ANDROID_HOME/cmdline-tools
 
-        # Descargar herramientas oficiales de Google
+        # Descargar herramientas oficiales
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
         unzip -q tools.zip
         mv cmdline-tools latest
         rm tools.zip
 
-        # Configurar variables de entorno para los siguientes pasos
+        # 🔥 EL TRUCO MAESTRO: Crear el enlace simbólico para que Buildozer encuentre sdkmanager
+        mkdir -p $ANDROID_HOME/tools/bin
+        ln -s $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $ANDROID_HOME/tools/bin/sdkmanager
+
+        # Guardar rutas para los siguientes pasos
         echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
         echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
 
-    - name: Accept Licenses & Install Build Tools
+    - name: Accept Licenses & Pre-install Build Tools
       run: |
-        # Aceptar licencias de forma automática (el paso que te estaba fallando)
+        # Aceptar licencias
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
         
-        # Instalar build-tools y platform manualmente para que AIDL esté presente
+        # Instalar AIDL y herramientas de compilación manualmente (para evitar el error de la imagen anterior)
         $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
     - name: Build APK with Buildozer
       run: |
-        # Usamos "yes |" para confirmar cualquier licencia extra durante el proceso
-        # y forzamos a buildozer a ver el SDK que ya preparamos
+        # Forzamos a Buildozer a usar el SDK que ya configuramos
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+        
+        # El comando 'yes' responde 'y' a cualquier pregunta de licencia que surja
         yes | buildozer -v android debug
 
     - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: apk
-        path: bin/*.apk
