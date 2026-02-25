@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repo
+      uses: actions/checkout@v4
 
     - name: Install system packages
       run: |
@@ -30,17 +31,36 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython
 
-    - name: Accept Android licenses automáticamente
+    # 🔥 instala Android SDK en la estructura EXACTA que Buildozer espera
+    - name: Install Android SDK correcto
+      run: |
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        cd $ANDROID_HOME
+
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
+        unzip -q tools.zip
+        rm tools.zip
+
+        mv cmdline-tools cmdline-tools/latest
+
+        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+        echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+
+    # 🔥 acepta licencias automáticamente
+    - name: Accept Android licenses
       run: |
         mkdir -p $HOME/.buildozer/android/platform/android-sdk/licenses
         echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
         echo "84831b9409646a918e30573bab4c9c91346d8abd" >> $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
 
+    # 🚀 compila APK
     - name: Build APK
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         buildozer -v android debug
 
+    # 📦 descarga APK
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
