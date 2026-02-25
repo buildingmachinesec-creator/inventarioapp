@@ -26,47 +26,22 @@ jobs:
         distribution: temurin
         java-version: 17
 
-    - name: Install Python tools
+    - name: Install Buildozer and Cython
       run: |
         pip install --upgrade pip
-        pip install buildozer cython
+        pip install "buildozer==1.5.0" cython  # Forzamos una versión estable de buildozer
 
-    - name: Install Android SDK & Fix Path for Buildozer
+    - name: Build APK
       run: |
-        # Definir la ruta donde Buildozer espera el SDK
-        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        mkdir -p $ANDROID_HOME/cmdline-tools
-        cd $ANDROID_HOME/cmdline-tools
-
-        # Descargar herramientas oficiales
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
-        unzip -q tools.zip
-        mv cmdline-tools latest
-        rm tools.zip
-
-        # 🔥 EL TRUCO MAESTRO: Crear el enlace simbólico para que Buildozer encuentre sdkmanager
-        mkdir -p $ANDROID_HOME/tools/bin
-        ln -s $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $ANDROID_HOME/tools/bin/sdkmanager
-
-        # Guardar rutas para los siguientes pasos
-        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-        echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
-
-    - name: Accept Licenses & Pre-install Build Tools
-      run: |
-        # Aceptar licencias
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
-        
-        # Instalar AIDL y herramientas de compilación manualmente (para evitar el error de la imagen anterior)
-        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-34" "build-tools;34.0.0" "platform-tools"
-
-    - name: Build APK with Buildozer
-      run: |
-        # Forzamos a Buildozer a usar el SDK que ya configuramos
-        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
-        
-        # El comando 'yes' responde 'y' a cualquier pregunta de licencia que surja
+        # Este comando acepta las licencias de Android automáticamente
+        # y corre el proceso en modo debug para ver todo el log
         yes | buildozer -v android debug
+      env:
+        # Esto ayuda a que el motor de Android no pida interacción manual
+        TERM: xterm
 
     - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: apk
+        path: bin/*.apk
