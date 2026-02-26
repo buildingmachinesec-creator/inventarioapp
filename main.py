@@ -5,6 +5,8 @@ from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton, MDFlatButton
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.list import TwoLineAvatarIconListItem, IconLeftWidget
 from kivymd.uix.dialog import MDDialog
+from kivymd.uix.toolbar import MDTopAppBar
+from kivymd.uix.tab import MDTabs
 from kivy.clock import Clock
 from kivy.utils import platform
 import sqlite3, os
@@ -40,7 +42,7 @@ class Panel(MDBoxLayout):
         self.app = app_instance
         self.dialog = None
         
-        # Inputs rápidos
+        # Inputs rápidos (Añadir producto)
         self.id_in = MDTextField(hint_text="Nombre del producto", mode="rectangle", size_hint_y=None, height="50dp")
         self.cant_in = MDTextField(hint_text="Cant.", input_filter="int", text="1", size_hint_y=None, height="50dp", size_hint_x=0.3)
         
@@ -49,7 +51,7 @@ class Panel(MDBoxLayout):
         h_box.add_widget(self.cant_in)
         self.add_widget(h_box)
         
-        btn_add = MDFillRoundFlatButton(text="REGISTRAR PRODUCTO", pos_hint={"center_x": .5})
+        btn_add = MDFillRoundFlatButton(text="REGISTRAR NUEVO", pos_hint={"center_x": .5})
         btn_add.bind(on_release=self.agregar)
         self.add_widget(btn_add)
         
@@ -71,33 +73,30 @@ class Panel(MDBoxLayout):
         c.execute("SELECT * FROM items WHERE categoria=? AND id LIKE ? ORDER BY id ASC", (self.categoria, f"%{filtro}%"))
         
         for item in c.fetchall():
-            # El item principal: Al tocar el texto, sale el menú de ELIMINAR
+            # Item: Tocar el texto activa el diálogo de ELIMINAR
             row = TwoLineAvatarIconListItem(
                 text=f"[b]{item[0]}[/b]", 
-                secondary_text=f"Stock: [color=0000ff]{item[2]}[/color]  |  {item[3]}",
+                secondary_text=f"Stock: [color=1976D2]{item[2]}[/color]  |  Modificado: {item[3]}",
                 on_release=lambda x, i=item: self.menu_eliminar(i)
             )
             row.add_widget(IconLeftWidget(icon="cube-outline"))
             
-            # CONTENEDOR DE BOTONES INDIVIDUALES (+ y -)
-            # Los ponemos a la derecha de cada fila
-            btns = MDBoxLayout(adaptive_width=True, spacing="10dp", padding=[0, 10, 10, 0])
+            # BOTONES INDIVIDUALES (+ y -) a la derecha
+            btns = MDBoxLayout(adaptive_width=True, spacing="8dp", padding=[0, 8, 8, 0])
             
-            # Botón MENOS (-1) - Rojo
             btn_minus = MDIconButton(
                 icon="minus-circle", 
-                user_font_size="32sp",
+                user_font_size="30sp",
                 theme_text_color="Custom", 
-                text_color=(1, 0, 0, 1)
+                text_color=(.9, .2, .2, 1)
             )
             btn_minus.bind(on_release=lambda x, i=item: self.modificar_stock(i, -1))
             
-            # Botón MÁS (+1) - Verde
             btn_plus = MDIconButton(
                 icon="plus-circle", 
-                user_font_size="32sp",
+                user_font_size="30sp",
                 theme_text_color="Custom", 
-                text_color=(0, .7, 0, 1)
+                text_color=(.1, .6, .1, 1)
             )
             btn_plus.bind(on_release=lambda x, i=item: self.modificar_stock(i, 1))
             
@@ -117,7 +116,7 @@ class Panel(MDBoxLayout):
                   (nueva_cant, f"Hoy {fecha}", item[0], item[1]))
         conn.commit()
         conn.close()
-        self.refrescar() # Refresca solo esta pestaña para ahorrar recursos
+        self.refrescar()
 
     def menu_eliminar(self, item):
         self.dialog = MDDialog(
@@ -154,17 +153,17 @@ class Panel(MDBoxLayout):
 
 class InventarioApp(MDApp):
     def build(self):
-        self.theme_cls.primary_palette = "Blue"
+        self.theme_cls.primary_palette = "Indigo"
         init_db()
         
         main_ui = MDBoxLayout(orientation="vertical")
-        main_ui.add_widget(MDTopAppBar(title="Inventario Pro (Optimizado)", elevation=4))
+        main_ui.add_widget(MDTopAppBar(title="Inventario Pro ⚡", elevation=4))
         
-        # BUSCADOR QUE ACTUALIZA TODO
+        # BUSCADOR UNIVERSAL
         self.search_bar = MDTextField(
-            hint_text="🔍 Escribe para buscar en todas las listas...", 
-            mode="fill", fill_color_normal=(.9, .9, .9, 1),
-            size_hint_y=None, height="60dp"
+            hint_text="🔍 Buscar en todas las listas...", 
+            mode="fill", fill_color_normal=(.95, .95, .95, 1),
+            size_hint_y=None, height="58dp"
         )
         self.search_bar.bind(text=self.refrescar_todo)
         main_ui.add_widget(self.search_bar)
