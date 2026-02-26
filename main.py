@@ -1,12 +1,11 @@
 from kivymd.app import MDApp
-from kivymd.uix.tab import MDTabsBase
+from kivymd.uix.tab import MDTabsBase, MDTabs
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton, MDFlatButton
 from kivymd.uix.textfield import MDTextField
-from kivymd.uix.list import TwoLineAvatarIconListItem, IconLeftWidget
+from kivymd.uix.list import TwoLineAvatarIconListItem, IconLeftWidget, IRightBodyTouch
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.toolbar import MDTopAppBar
-from kivymd.uix.tab import MDTabs
 from kivy.clock import Clock
 from kivy.utils import platform
 import sqlite3, os
@@ -34,6 +33,12 @@ def init_db():
 
 class Tab(MDBoxLayout, MDTabsBase):
     pass
+
+# --- EL SECRETO PARA QUE NO SE AMONTONEN ---
+class ContenedorBotonesDerecha(IRightBodyTouch, MDBoxLayout):
+    adaptive_width = True
+    spacing = "15dp" # Espacio entre el + y el -
+    padding = ["10dp", 0, "10dp", 0]
 
 class Panel(MDBoxLayout):
     def __init__(self, categoria, app_instance, **kwargs):
@@ -80,28 +85,31 @@ class Panel(MDBoxLayout):
             )
             row.add_widget(IconLeftWidget(icon="cube-outline"))
             
-            btns = MDBoxLayout(adaptive_width=True, spacing="4dp", padding=[0, 8, 8, 0])
+            # Usamos el nuevo contenedor espacioso
+            botones_der = ContenedorBotonesDerecha()
             
-            # EL FIX: Cambiado user_font_size por icon_size
             btn_minus = MDIconButton(
                 icon="minus-circle", 
-                icon_size="30sp",
+                icon_size="32sp",
                 theme_text_color="Custom", 
-                text_color=(.9, .2, .2, 1)
+                text_color=(.9, .2, .2, 1),
+                pos_hint={"center_y": .5} # Centrado verticalmente
             )
             btn_minus.bind(on_release=lambda x, i=item: self.modificar_stock(i, -1))
             
             btn_plus = MDIconButton(
                 icon="plus-circle", 
-                icon_size="30sp",
+                icon_size="32sp",
                 theme_text_color="Custom", 
-                text_color=(.1, .6, .1, 1)
+                text_color=(.1, .6, .1, 1),
+                pos_hint={"center_y": .5} # Centrado verticalmente
             )
             btn_plus.bind(on_release=lambda x, i=item: self.modificar_stock(i, 1))
             
-            btns.add_widget(btn_minus)
-            btns.add_widget(btn_plus)
-            row.add_widget(btns)
+            botones_der.add_widget(btn_minus)
+            botones_der.add_widget(btn_plus)
+            row.add_widget(botones_der)
+            
             self.lista.add_widget(row)
         conn.close()
 
