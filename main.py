@@ -12,10 +12,16 @@ from kivy.utils import platform
 import sqlite3, socket, json, os, threading
 from datetime import datetime
 
-# --- CONFIGURACIÓN DE RUTA PARA ANDROID ---
+# --- CONFIGURACIÓN DE RUTA PARA ANDROID (CORREGIDA) ---
 if platform == 'android':
-    from android.storage import app_storage_details
-    FOLDER = app_storage_details().files_path
+    try:
+        from jnius import autoclass
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        activity = PythonActivity.mActivity
+        FOLDER = str(activity.getFilesDir().getAbsolutePath())
+    except Exception as e:
+        print(f"Error obteniendo ruta Android: {e}")
+        FOLDER = "."
 else:
     FOLDER = "."
 
@@ -46,17 +52,18 @@ def obtener_items(cat, filtro=""):
     except: return []
 
 def actualizar_db(data):
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-    c.execute("DELETE FROM items")
-    for item in data:
-        c.execute("INSERT INTO items VALUES (?,?,?,?)", item)
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB)
+        c = conn.cursor()
+        c.execute("DELETE FROM items")
+        for item in data:
+            c.execute("INSERT INTO items VALUES (?,?,?,?)", item)
+        conn.commit()
+        conn.close()
+    except: pass
 
 # ---------- SINCRONIZACIÓN (EN SEGUNDO PLANO) ----------
 def thread_sincronizar():
-    # Buscamos la IP sin congelar la pantalla
     base = None
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -74,7 +81,6 @@ def thread_sincronizar():
             s = socket.socket()
             s.settimeout(0.1)
             s.connect((ip_test, PORT))
-            # Si conecta, pedimos datos
             data = s.recv(999999)
             if data:
                 actualizar_db(json.loads(data.decode()))
@@ -91,17 +97,21 @@ class Panel(MDBoxLayout):
         super().__init__(orientation="vertical", spacing=10, padding=10, **kwargs)
         self.categoria = categoria
         self.seleccionado = None
+        
         self.buscar = MDTextField(hint_text="Buscar ID")
         self.buscar.bind(text=self.refrescar)
         self.add_widget(self.buscar)
+        
         self.id_input = MDTextField(hint_text="ID producto")
         self.cantidad = MDTextField(hint_text="Cantidad", input_filter="int")
         self.add_widget(self.id_input)
         self.add_widget(self.cantidad)
+        
         fila = MDBoxLayout(size_hint_y=None, height=50, spacing=10)
         fila.add_widget(MDRaisedButton(text="Add", on_release=self.agregar))
         fila.add_widget(MDRaisedButton(text="Del", on_release=self.eliminar))
         self.add_widget(fila)
+        
         self.scroll = MDScrollView()
         self.lista = MDList()
         self.scroll.add_widget(self.lista)
@@ -111,8 +121,10 @@ class Panel(MDBoxLayout):
     def refrescar(self, *args):
         self.lista.clear_widgets()
         for item in obtener_items(self.categoria, self.buscar.text):
-            self.lista.add_widget(OneLineListItem(text=f"{item[0]} | Cant: {item[2]}", 
-                                  on_release=lambda x, i=item: self.seleccionar(i)))
+            self.lista.add_widget(OneLineListItem(
+                text=f"{item[0]} | Cant: {item[2]}", 
+                on_release=lambda x, i=item: self.seleccionar(i)
+            ))
 
     def seleccionar(self, item):
         self.seleccionado = item
@@ -150,6 +162,7 @@ class InventarioApp(MDApp):
             tab.add_widget(Panel(nombre))
             tabs.add_widget(tab)
         layout.add_widget(tabs)
+        
         # Sincronización cada 30 seg en un hilo separado
         Clock.schedule_interval(lambda dt: threading.Thread(target=thread_sincronizar).start(), 30)
         return layout
