@@ -1,4 +1,4 @@
-name: Build APK Blindado
+name: Build APK Final Express
 
 on:
   push:
@@ -7,29 +7,36 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    # Aquí está el truco: usamos un contenedor que ya tiene TODO listo
-    container:
-      image: kivy/buildozer:latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Fix permissions
+      - name: Install Dependencies
         run: |
-          # Buildozer a veces se queja de permisos en Docker
-          sudo chown -R user .
-          
+          sudo apt update
+          sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev \
+          libncurses-dev cmake libffi-dev libssl-dev python3-pip openjdk-17-jdk
+
+      - name: Install Buildozer
+        run: |
+          pip install --upgrade pip
+          pip install "buildozer==1.5.0" "cython<3.0.0"
+
       - name: Build APK
         run: |
-          # Usamos el usuario 'user' que viene en la imagen de Docker
-          buildozer -v android debug
-        shell: sudo -u user -i sh -c "cd $GITHUB_WORKSPACE && %s"
-        # Nota: El comando anterior es especial para que corra como usuario no-root
+          # Limpiamos rastro de errores anteriores
+          rm -rf .buildozer/
+          # Forzamos la aceptación de licencias
+          yes | buildozer -v android debug
+        env:
+          # Limpiamos variables que causan conflictos de ruta
+          ANDROID_SDK_ROOT: ""
+          ANDROID_NDK_ROOT: ""
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: App-Inventario
+          name: Inventario-APK
           path: bin/*.apk
