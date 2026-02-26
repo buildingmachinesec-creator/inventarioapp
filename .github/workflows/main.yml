@@ -1,4 +1,4 @@
-name: Build APK Final Express
+name: Build APK Ultimate
 
 on:
   push:
@@ -7,36 +7,22 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install Dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev \
-          libncurses-dev cmake libffi-dev libssl-dev python3-pip openjdk-17-jdk
-
-      - name: Install Buildozer
-        run: |
-          pip install --upgrade pip
-          pip install "buildozer==1.5.0" "cython<3.0.0"
-
-      - name: Build APK
-        run: |
-          # Limpiamos rastro de errores anteriores
-          rm -rf .buildozer/
-          # Forzamos la aceptación de licencias
-          yes | buildozer -v android debug
-        env:
-          # Limpiamos variables que causan conflictos de ruta
-          ANDROID_SDK_ROOT: ""
-          ANDROID_NDK_ROOT: ""
+      # Esta Action es la solución definitiva; ya maneja el SDK y las licencias por ti
+      - name: Buildozer Action
+        uses: ArtemSBulgakov/buildozer-action@v1
+        with:
+          buildozer_version: stable
+          command: buildozer -v android debug
+          repository_root: .
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Inventario-APK
+          name: MiApp-Inventario
           path: bin/*.apk
