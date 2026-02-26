@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK Clean
 
 on:
   push:
@@ -7,58 +7,42 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repo
       uses: actions/checkout@v4
 
-    - name: Install system packages
-      run: |
-        sudo apt update
-        sudo apt install -y python3-pip git zip unzip autoconf libtool \
-          pkg-config zlib1g-dev libncurses-dev cmake \
-          libffi-dev libssl-dev openjdk-17-jdk
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-    - name: Set up Java 17
+    # Esta joya configura Java y el SDK de Android correctamente por nosotros
+    - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
-        distribution: temurin
-        java-version: 17
+        java-version: '17'
+        distribution: 'temurin'
 
-    - name: Install Buildozer and Cython
+    - name: Install Buildozer dependencies
       run: |
+        sudo apt update
+        sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev \
+        libncurses-dev cmake libffi-dev libssl-dev
         pip install --upgrade pip
-        pip install buildozer cython
+        pip install buildozer cython kivy
 
-    # 🔥 EL TRUCO MAESTRO: Ahora sí con el --sdk_root que pidió
-    - name: Setup Android SDK manually for Buildozer
+    - name: Build with Buildozer
       run: |
-        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        mkdir -p $ANDROID_HOME/cmdline-tools
-        
-        # 1. Descargamos las herramientas
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-        unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
-        mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
-        rm cmdline-tools.zip
-        
-        # 2. Creamos los "enlaces falsos" para Buildozer
-        mkdir -p $ANDROID_HOME/tools
-        ln -s $ANDROID_HOME/cmdline-tools/latest/bin $ANDROID_HOME/tools/bin
-        ln -s $ANDROID_HOME/cmdline-tools/latest/lib $ANDROID_HOME/tools/lib
-        
-        # 3. Aceptamos las licencias (CORREGIDO: le decimos explícitamente dónde está el root)
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
-
-    # 🚀 Compilamos
-    - name: Build APK
-      run: buildozer -v android debug
+        # Usamos esto para aceptar licencias sin comandos raros
+        yes | buildozer -v android debug
       env:
-        TERM: xterm
+        # Esto evita errores de buffer en el log
+        PYTHONUNBUFFERED: 1
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: apk
+        name: Mi-Aplicacion-APK
         path: bin/*.apk
