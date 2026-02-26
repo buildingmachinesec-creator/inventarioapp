@@ -1,4 +1,4 @@
-name: Build APK Ultimate
+name: Build APK Manual Directo
 
 on:
   push:
@@ -7,22 +7,35 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # Esta Action es la solución definitiva; ya maneja el SDK y las licencias por ti
-      - name: Buildozer Action
-        uses: ArtemSBulgakov/buildozer-action@v1
-        with:
-          buildozer_version: stable
-          command: buildozer -v android debug
-          repository_root: .
+      - name: Setup Environment
+        run: |
+          sudo apt update
+          sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev \
+          libncurses-dev cmake libffi-dev libssl-dev openjdk-17-jdk python3-pip
+          pip install --user --upgrade pip
+          pip install --user buildozer cython==0.29.33
+          # Agregamos buildozer al PATH manualmente para que el sistema lo encuentre
+          echo "/home/runner/.local/bin" >> $GITHUB_PATH
+
+      - name: Build with Buildozer
+        run: |
+          # Limpieza absoluta de intentos fallidos previos
+          rm -rf .buildozer/
+          # Aceptamos licencias y compilamos de forma directa
+          yes | buildozer -v android debug
+        env:
+          # Vaciamos esto para que no use los NDKs preinstalados que fallan
+          ANDROID_SDK_ROOT: ""
+          ANDROID_NDK_ROOT: ""
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MiApp-Inventario
+          name: APK-Final-Inventario
           path: bin/*.apk
