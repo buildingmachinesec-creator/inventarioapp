@@ -1,4 +1,4 @@
-name: Build APK Final v2
+name: Build APK Rapido
 
 on:
   push:
@@ -7,8 +7,7 @@ on:
 
 jobs:
   build:
-    # Usamos 22.04 porque es mucho más estable para Android
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04 # Más estable para Kivy
 
     steps:
     - name: Checkout repo
@@ -26,24 +25,24 @@ jobs:
         sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev \
         libncurses-dev cmake libffi-dev libssl-dev python3-pip
 
-    - name: Install Python Tools
+    - name: Install Buildozer
       run: |
         pip install --upgrade pip
         pip install "buildozer==1.5.0" "cython<3.0.0"
 
     - name: Build with Buildozer
       run: |
-        # Eliminamos basura de intentos fallidos
-        rm -rf .buildozer/
-        # Aceptar licencias y compilar
+        # Forzamos a que buildozer no se pierda en carpetas viejas
+        rm -rf .buildozer/android/platform/build-* # Ejecutamos. Si falla, el log nos dirá por qué antes del error de 'yes'
         yes | buildozer -v android debug
       env:
-        # Forzamos a que no use las rutas pre-configuradas de GitHub que fallan
+        # Esto es clave para que no use el NDK roto de GitHub
         ANDROID_SDK_ROOT: ""
         ANDROID_NDK_ROOT: ""
+        TERM: xterm
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: App-Inventario-Final
+        name: APK-Inventario
         path: bin/*.apk
