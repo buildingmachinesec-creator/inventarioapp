@@ -9,10 +9,10 @@ from kivymd.uix.toolbar import MDTopAppBar
 from kivymd.uix.tab import MDTabs
 from kivy.clock import Clock
 from kivy.utils import platform
-import sqlite3, socket, json, os, threading
+import sqlite3, os
 from datetime import datetime
 
-# --- RUTA PARA ANDROID ---
+# --- CONFIGURACIÓN DE RUTA ---
 if platform == 'android':
     try:
         from jnius import autoclass
@@ -58,16 +58,34 @@ class Panel(MDBoxLayout):
 
     def refrescar(self, *args):
         self.lista.clear_widgets()
-        # CORRECCIÓN AQUÍ: Acceso directo a la variable de la app
         filtro = self.app.search_bar.text.lower() if self.app.search_bar else ""
         
         conn = sqlite3.connect(DB)
         c = conn.cursor()
         c.execute("SELECT * FROM items WHERE categoria=? AND id LIKE ?", (self.categoria, f"%{filtro}%"))
         for item in c.fetchall():
-            row = TwoLineAvatarIconListItem(text=f"{item[0]} | Stock: {item[2]}", secondary_text=f"Fecha: {item[3]}")
+            # Item con texto y fecha
+            row = TwoLineAvatarIconListItem(
+                text=f"{item[0]} | Stock: {item[2]}", 
+                secondary_text=f"Modificado: {item[3]}"
+            )
             row.add_widget(IconLeftWidget(icon="package-variant"))
-            row.add_widget(IconRightWidget(icon="plus", on_release=lambda x, i=item: self.modificar(i, 1)))
+            
+            # Contenedor para botones de + y -
+            btns_cont = MDBoxLayout(adaptive_width=True, spacing="5dp")
+            
+            # BOTÓN MENOS (-1)
+            btn_m = MDIconButton(icon="minus-circle", theme_text_color="Custom", text_color=(1, 0, 0, 1))
+            btn_m.bind(on_release=lambda x, i=item: self.modificar(i, -1))
+            
+            # BOTÓN MÁS (+1)
+            btn_p = MDIconButton(icon="plus-circle", theme_text_color="Custom", text_color=(0, .6, 0, 1))
+            btn_p.bind(on_release=lambda x, i=item: self.modificar(i, 1))
+            
+            btns_cont.add_widget(btn_m)
+            btns_cont.add_widget(btn_p)
+            row.add_widget(btns_cont)
+            
             self.lista.add_widget(row)
         conn.close()
 
@@ -83,9 +101,12 @@ class Panel(MDBoxLayout):
         self.app.refrescar_todo()
 
     def modificar(self, item, cambio):
+        # Evita que el stock sea menor a 0
+        nueva_cant = max(0, item[2] + cambio)
+        fecha_act = datetime.now().strftime("%d/%m/%Y %H:%M")
         conn = sqlite3.connect(DB)
         c = conn.cursor()
-        c.execute("UPDATE items SET cantidad=? WHERE id=? AND categoria=?", (max(0, item[2]+cambio), item[0], item[1]))
+        c.execute("UPDATE items SET cantidad=?, fecha=? WHERE id=? AND categoria=?", (nueva_cant, fecha_act, item[0], item[1]))
         conn.commit()
         conn.close()
         self.app.refrescar_todo()
@@ -94,13 +115,13 @@ class InventarioApp(MDApp):
     def build(self):
         self.theme_cls.primary_palette = "Blue"
         init_db()
-        self.search_bar = None # Inicializamos la variable
+        self.search_bar = None
         
         layout = MDBoxLayout(orientation="vertical")
         layout.add_widget(MDTopAppBar(title="Inventario Pro"))
         
-        # BUSCADOR GLOBAL
-        self.search_bar = MDTextField(hint_text="Buscador Universal", mode="fill", size_hint_y=None, height="60dp")
+        # BUSCADOR UNIVERSAL
+        self.search_bar = MDTextField(hint_text="Buscador Universal (ID / Nombre)", mode="fill", size_hint_y=None, height="60dp")
         self.search_bar.bind(text=self.refrescar_todo)
         layout.add_widget(self.search_bar)
         
