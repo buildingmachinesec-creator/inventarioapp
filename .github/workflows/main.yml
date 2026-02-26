@@ -1,4 +1,4 @@
-name: Build APK Clean
+name: Build APK Final
 
 on:
   push:
@@ -7,42 +7,43 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Checkout repo
       uses: actions/checkout@v4
+
+    - name: Clean previous builds
+      run: rm -rf .buildozer/
+
+    - name: Install system packages
+      run: |
+        sudo apt update
+        sudo apt install -y python3-pip git zip unzip autoconf libtool \
+          pkg-config zlib1g-dev libncurses-dev cmake \
+          libffi-dev libssl-dev openjdk-17-jdk
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    # Esta joya configura Java y el SDK de Android correctamente por nosotros
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-
-    - name: Install Buildozer dependencies
+    - name: Install Buildozer and Cython
       run: |
-        sudo apt update
-        sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev \
-        libncurses-dev cmake libffi-dev libssl-dev
         pip install --upgrade pip
-        pip install buildozer cython kivy
+        pip install "buildozer==1.5.0" "cython<3.0.0"
 
-    - name: Build with Buildozer
+    - name: Build APK
       run: |
-        # Usamos esto para aceptar licencias sin comandos raros
+        # Forzamos la aceptación de licencias y ejecutamos
         yes | buildozer -v android debug
       env:
-        # Esto evita errores de buffer en el log
-        PYTHONUNBUFFERED: 1
+        TERM: xterm
+        # Esto ayuda a evitar conflictos con el NDK preinstalado de GitHub
+        ANDROID_NDK_HOME: "" 
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: Mi-Aplicacion-APK
+        name: apk-inventario
         path: bin/*.apk
