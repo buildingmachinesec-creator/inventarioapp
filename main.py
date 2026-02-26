@@ -12,67 +12,26 @@ from kivy.utils import platform
 import sqlite3, socket, json, os, threading
 from datetime import datetime
 
-# --- CONFIGURACIÓN DE RUTA PARA ANDROID ---
+# --- RUTA PARA ANDROID ---
 if platform == 'android':
     try:
         from jnius import autoclass
         PythonActivity = autoclass('org.kivy.android.PythonActivity')
         activity = PythonActivity.mActivity
         FOLDER = str(activity.getFilesDir().getAbsolutePath())
-    except Exception as e:
-        FOLDER = "."
+    except: FOLDER = "."
 else:
     FOLDER = "."
 
 DB = os.path.join(FOLDER, "inventario.db")
-PORT = 5050
 
-# ---------- BASE DE DATOS ----------
 def init_db():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute("""CREATE TABLE IF NOT EXISTS items(
-        id TEXT, categoria TEXT, cantidad INTEGER, fecha TEXT
-    )""")
+    c.execute("CREATE TABLE IF NOT EXISTS items(id TEXT, categoria TEXT, cantidad INTEGER, fecha TEXT)")
     conn.commit()
     conn.close()
 
-def actualizar_db(data):
-    try:
-        conn = sqlite3.connect(DB)
-        c = conn.cursor()
-        c.execute("DELETE FROM items")
-        for item in data:
-            c.execute("INSERT INTO items VALUES (?,?,?,?)", item)
-        conn.commit()
-        conn.close()
-    except: pass
-
-# ---------- SINCRONIZACIÓN ----------
-def thread_sincronizar():
-    base = None
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        base = ".".join(ip.split(".")[:3])
-    except: pass
-    if not base: return
-    for i in range(1, 255):
-        ip_test = f"{base}.{i}"
-        try:
-            s = socket.socket()
-            s.settimeout(0.1)
-            s.connect((ip_test, PORT))
-            data = s.recv(999999)
-            if data:
-                actualizar_db(json.loads(data.decode()))
-            s.close()
-            break 
-        except: pass
-
-# ---------- UI ----------
 class Tab(MDBoxLayout, MDTabsBase):
     pass
 
@@ -82,15 +41,14 @@ class Panel(MDBoxLayout):
         self.categoria = categoria
         self.app = app_instance
         
-        # Inputs para agregar
-        self.id_input = MDTextField(hint_text="Nombre / ID del producto", mode="rectangle")
-        self.cantidad = MDTextField(hint_text="Cantidad inicial", input_filter="int", text="1")
-        self.add_widget(self.id_input)
-        self.add_widget(self.cantidad)
+        self.id_in = MDTextField(hint_text="Nombre del Producto", mode="rectangle")
+        self.cant_in = MDTextField(hint_text="Cantidad Inicial", input_filter="int", text="1")
+        self.add_widget(self.id_in)
+        self.add_widget(self.cant_in)
         
-        btn_add = MDRaisedButton(text="AGREGAR NUEVO", pos_hint={"center_x": .5})
-        btn_add.bind(on_release=self.agregar)
-        self.add_widget(btn_add)
+        btn = MDRaisedButton(text="AGREGAR NUEVO", pos_hint={"center_x": .5})
+        btn.bind(on_release=self.agregar)
+        self.add_widget(btn)
         
         self.scroll = MDScrollView()
         self.lista = MDList()
@@ -100,59 +58,34 @@ class Panel(MDBoxLayout):
 
     def refrescar(self, *args):
         self.lista.clear_widgets()
-        filtro = self.app.root.ids.search_universal.text.lower()
+        # CORRECCIÓN AQUÍ: Acceso directo a la variable de la app
+        filtro = self.app.search_bar.text.lower() if self.app.search_bar else ""
         
         conn = sqlite3.connect(DB)
         c = conn.cursor()
         c.execute("SELECT * FROM items WHERE categoria=? AND id LIKE ?", (self.categoria, f"%{filtro}%"))
-        items = c.fetchall()
-        
-        for item in items:
-            # Lista de dos líneas: Nombre y Fecha
-            item_ui = TwoLineAvatarIconListItem(
-                text=f"{item[0]} | Stock: {item[2]}",
-                secondary_text=f"Última vez: {item[3]}"
-            )
-            item_ui.add_widget(IconLeftWidget(icon="package-variant"))
-            
-            # Contenedor de botones a la derecha
-            btns = MDBoxLayout(adaptive_width=True, spacing="5dp")
-            
-            # Botón de más
-            btn_plus = MDIconButton(icon="plus-thick", theme_text_color="Custom", text_color=(0, .7, 0, 1))
-            btn_plus.bind(on_release=lambda x, i=item: self.modificar_stock(i, 1))
-            
-            # Botón de menos
-            btn_minus = MDIconButton(icon="minus-thick", theme_text_color="Custom", text_color=(.7, 0, 0, 1))
-            btn_minus.bind(on_release=lambda x, i=item: self.modificar_stock(i, -1))
-            
-            item_ui.add_widget(IconRightWidget(icon="chevron-right", on_release=lambda x, i=item: self.modificar_stock(i, 1)))
-            # Para mantenerlo simple y que no crashee, el IconRightWidget sumará 1 al tocarlo
-            # El botón "Del" lo manejaremos con click largo si lo necesitas luego
-            
-            self.lista.add_widget(item_ui)
+        for item in c.fetchall():
+            row = TwoLineAvatarIconListItem(text=f"{item[0]} | Stock: {item[2]}", secondary_text=f"Fecha: {item[3]}")
+            row.add_widget(IconLeftWidget(icon="package-variant"))
+            row.add_widget(IconRightWidget(icon="plus", on_release=lambda x, i=item: self.modificar(i, 1)))
+            self.lista.add_widget(row)
         conn.close()
 
     def agregar(self, *args):
-        if not self.id_input.text: return
-        # Fecha con Hora exacta
-        fecha_completa = datetime.now().strftime("%d/%m/%Y %H:%M")
+        if not self.id_in.text: return
+        fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
         conn = sqlite3.connect(DB)
         c = conn.cursor()
-        c.execute("INSERT INTO items VALUES (?,?,?,?)",
-                  (self.id_input.text, self.categoria, int(self.cantidad.text or 0), fecha_completa))
+        c.execute("INSERT INTO items VALUES (?,?,?,?)", (self.id_in.text, self.categoria, int(self.cant_in.text or 0), fecha))
         conn.commit()
         conn.close()
-        self.id_input.text = ""
+        self.id_in.text = ""
         self.app.refrescar_todo()
 
-    def modificar_stock(self, item, cambio):
-        nueva = max(0, item[2] + cambio)
-        fecha_act = datetime.now().strftime("%d/%m/%Y %H:%M")
+    def modificar(self, item, cambio):
         conn = sqlite3.connect(DB)
         c = conn.cursor()
-        c.execute("UPDATE items SET cantidad=?, fecha=? WHERE id=? AND categoria=?",
-                  (nueva, fecha_act, item[0], item[1]))
+        c.execute("UPDATE items SET cantidad=? WHERE id=? AND categoria=?", (max(0, item[2]+cambio), item[0], item[1]))
         conn.commit()
         conn.close()
         self.app.refrescar_todo()
@@ -161,38 +94,30 @@ class InventarioApp(MDApp):
     def build(self):
         self.theme_cls.primary_palette = "Blue"
         init_db()
+        self.search_bar = None # Inicializamos la variable
         
-        # Layout Principal
-        self.root_layout = MDBoxLayout(orientation="vertical")
-        self.root_layout.add_widget(MDTopAppBar(title="Inventario Pro"))
+        layout = MDBoxLayout(orientation="vertical")
+        layout.add_widget(MDTopAppBar(title="Inventario Pro"))
         
-        # BUSCADOR UNIVERSAL (ARRIBA)
-        self.search_bar = MDTextField(
-            id="search_universal",
-            hint_text="Buscador Universal (ID / Nombre)",
-            mode="fill",
-            size_hint_y=None, height="60dp"
-        )
+        # BUSCADOR GLOBAL
+        self.search_bar = MDTextField(hint_text="Buscador Universal", mode="fill", size_hint_y=None, height="60dp")
         self.search_bar.bind(text=self.refrescar_todo)
-        self.root_layout.add_widget(self.search_bar)
+        layout.add_widget(self.search_bar)
         
         self.tabs = MDTabs()
-        self.tab_objects = []
-        for nombre in ["Inventario", "Herramientas", "Otros"]:
-            tab = Tab(title=nombre)
-            panel = Panel(nombre, self)
-            tab.add_widget(panel)
+        self.tab_objs = []
+        for n in ["Inventario", "Herramientas", "Otros"]:
+            tab = Tab(title=n)
+            p = Panel(n, self)
+            tab.add_widget(p)
             self.tabs.add_widget(tab)
-            self.tab_objects.append(panel)
+            self.tab_objs.append(p)
             
-        self.root_layout.add_widget(self.tabs)
-        
-        Clock.schedule_interval(lambda dt: threading.Thread(target=thread_sincronizar).start(), 30)
-        return self.root_layout
+        layout.add_widget(self.tabs)
+        return layout
 
     def refrescar_todo(self, *args):
-        for panel in self.tab_objects:
-            panel.refrescar()
+        for p in self.tab_objs: p.refrescar()
 
 if __name__ == "__main__":
     InventarioApp().run()
