@@ -12,7 +12,7 @@ from kivy.utils import platform
 import sqlite3, os
 from datetime import datetime
 
-# --- CONFIGURACIÓN DE RUTA ---
+# --- RUTA DE BASE DE DATOS ---
 if platform == 'android':
     try:
         from jnius import autoclass
@@ -42,8 +42,8 @@ class Panel(MDBoxLayout):
         self.app = app_instance
         self.dialog = None
         
-        # Inputs rápidos (Añadir producto)
-        self.id_in = MDTextField(hint_text="Nombre del producto", mode="rectangle", size_hint_y=None, height="50dp")
+        # Inputs
+        self.id_in = MDTextField(hint_text="Producto", mode="rectangle", size_hint_y=None, height="50dp")
         self.cant_in = MDTextField(hint_text="Cant.", input_filter="int", text="1", size_hint_y=None, height="50dp", size_hint_x=0.3)
         
         h_box = MDBoxLayout(spacing="10dp", size_hint_y=None, height="50dp")
@@ -51,7 +51,7 @@ class Panel(MDBoxLayout):
         h_box.add_widget(self.cant_in)
         self.add_widget(h_box)
         
-        btn_add = MDFillRoundFlatButton(text="REGISTRAR NUEVO", pos_hint={"center_x": .5})
+        btn_add = MDFillRoundFlatButton(text="REGISTRAR", pos_hint={"center_x": .5})
         btn_add.bind(on_release=self.agregar)
         self.add_widget(btn_add)
         
@@ -73,20 +73,19 @@ class Panel(MDBoxLayout):
         c.execute("SELECT * FROM items WHERE categoria=? AND id LIKE ? ORDER BY id ASC", (self.categoria, f"%{filtro}%"))
         
         for item in c.fetchall():
-            # Item: Tocar el texto activa el diálogo de ELIMINAR
             row = TwoLineAvatarIconListItem(
                 text=f"[b]{item[0]}[/b]", 
-                secondary_text=f"Stock: [color=1976D2]{item[2]}[/color]  |  Modificado: {item[3]}",
+                secondary_text=f"Stock: [color=1976D2]{item[2]}[/color] | {item[3]}",
                 on_release=lambda x, i=item: self.menu_eliminar(i)
             )
             row.add_widget(IconLeftWidget(icon="cube-outline"))
             
-            # BOTONES INDIVIDUALES (+ y -) a la derecha
-            btns = MDBoxLayout(adaptive_width=True, spacing="8dp", padding=[0, 8, 8, 0])
+            btns = MDBoxLayout(adaptive_width=True, spacing="4dp", padding=[0, 8, 8, 0])
             
+            # EL FIX: Cambiado user_font_size por icon_size
             btn_minus = MDIconButton(
                 icon="minus-circle", 
-                user_font_size="30sp",
+                icon_size="30sp",
                 theme_text_color="Custom", 
                 text_color=(.9, .2, .2, 1)
             )
@@ -94,7 +93,7 @@ class Panel(MDBoxLayout):
             
             btn_plus = MDIconButton(
                 icon="plus-circle", 
-                user_font_size="30sp",
+                icon_size="30sp",
                 theme_text_color="Custom", 
                 text_color=(.1, .6, .1, 1)
             )
@@ -103,9 +102,24 @@ class Panel(MDBoxLayout):
             btns.add_widget(btn_minus)
             btns.add_widget(btn_plus)
             row.add_widget(btns)
-            
             self.lista.add_widget(row)
         conn.close()
+
+    def agregar(self, *args):
+        nombre = self.id_in.text.strip()
+        if not nombre: return
+        
+        cantidad = int(self.cant_in.text) if self.cant_in.text.isdigit() else 0
+        fecha = datetime.now().strftime("%d/%m %H:%M")
+        
+        conn = sqlite3.connect(DB)
+        c = conn.cursor()
+        c.execute("INSERT INTO items VALUES (?,?,?,?)", (nombre, self.categoria, cantidad, fecha))
+        conn.commit()
+        conn.close()
+        
+        self.id_in.text = ""
+        self.app.refrescar_todo()
 
     def modificar_stock(self, item, cambio):
         nueva_cant = max(0, item[2] + cambio)
@@ -116,15 +130,15 @@ class Panel(MDBoxLayout):
                   (nueva_cant, f"Hoy {fecha}", item[0], item[1]))
         conn.commit()
         conn.close()
-        self.refrescar()
+        self.app.refrescar_todo()
 
     def menu_eliminar(self, item):
         self.dialog = MDDialog(
-            title="Opciones de producto",
-            text=f"¿Qué deseas hacer con '{item[0]}'?",
+            title="Borrar Producto",
+            text=f"¿Eliminar '{item[0]}' del inventario?",
             buttons=[
                 MDFlatButton(text="CANCELAR", on_release=lambda x: self.dialog.dismiss()),
-                MDFlatButton(text="BORRAR PRODUCTO", text_color=(1, 0, 0, 1), 
+                MDFlatButton(text="BORRAR", text_color=(1, 0, 0, 1), 
                              on_release=lambda x, i=item: self.ejecutar_borrado(i)),
             ],
         )
@@ -136,37 +150,19 @@ class Panel(MDBoxLayout):
         c.execute("DELETE FROM items WHERE id=? AND categoria=?", (item[0], item[1]))
         conn.commit()
         conn.close()
-        self.dialog.dismiss()
-        self.refrescar()
-
-    def agregar(self, *args):
-        if not self.id_in.text: return
-        fecha = datetime.now().strftime("%d/%m %H:%M")
-        conn = sqlite3.connect(DB)
-        c = conn.cursor()
-        c.execute("INSERT INTO items VALUES (?,?,?,?)", 
-                 (self.id_in.text, self.categoria, int(self.cant_in.text or 0), fecha))
-        conn.commit()
-        conn.close()
-        self.id_in.text = ""
-        self.refrescar()
+        if self.dialog: self.dialog.dismiss()
+        self.app.refrescar_todo()
 
 class InventarioApp(MDApp):
     def build(self):
         self.theme_cls.primary_palette = "Indigo"
         init_db()
+        layout = MDBoxLayout(orientation="vertical")
+        layout.add_widget(MDTopAppBar(title="Inventario Fix ⚡", elevation=4))
         
-        main_ui = MDBoxLayout(orientation="vertical")
-        main_ui.add_widget(MDTopAppBar(title="Inventario Pro ⚡", elevation=4))
-        
-        # BUSCADOR UNIVERSAL
-        self.search_bar = MDTextField(
-            hint_text="🔍 Buscar en todas las listas...", 
-            mode="fill", fill_color_normal=(.95, .95, .95, 1),
-            size_hint_y=None, height="58dp"
-        )
+        self.search_bar = MDTextField(hint_text="🔍 Buscar...", mode="fill", size_hint_y=None, height="55dp")
         self.search_bar.bind(text=self.refrescar_todo)
-        main_ui.add_widget(self.search_bar)
+        layout.add_widget(self.search_bar)
         
         self.tabs = MDTabs()
         self.tab_list = []
@@ -176,9 +172,8 @@ class InventarioApp(MDApp):
             tab.add_widget(p)
             self.tabs.add_widget(tab)
             self.tab_list.append(p)
-            
-        main_ui.add_widget(self.tabs)
-        return main_ui
+        layout.add_widget(self.tabs)
+        return layout
 
     def refrescar_todo(self, *args):
         for p in self.tab_list: p.refrescar()
