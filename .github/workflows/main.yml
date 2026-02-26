@@ -23,30 +23,26 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev \
-          libncurses-dev cmake libffi-dev libssl-dev python3-pip openjdk-17-jdk
+          libncurses-dev cmake libffi-dev libssl-dev python3-pip
 
       - name: Install Buildozer & Cython
         run: |
-          # Instalamos versiones específicas para evitar el error de 'Broken pipe'
           pip install --upgrade pip
           pip install "buildozer==1.5.0" "cython<3.0.0"
 
       - name: Build APK
         run: |
-          # 1. Limpiamos cualquier rastro de carpetas corruptas de intentos previos
+          # Limpieza total de lo que falló antes
           rm -rf .buildozer/
-          # 2. Ejecutamos Buildozer sin el comando 'yes |' que causaba el Broken Pipe
-          # y dejamos que el propio Buildozer maneje las licencias.
-          buildozer -v android debug
+          # Aceptamos licencias automáticamente
+          yes | buildozer -v android debug
         env:
-          # Vaciamos estas variables para que no usen los NDKs rotos de GitHub
+          # Esto evita que use los NDKs rotos que ya vienen en GitHub
           ANDROID_SDK_ROOT: ""
           ANDROID_NDK_ROOT: ""
-          # Esto evita que Buildozer se detenga pidiendo interacción
-          APP_ANDROID_ACCEPT_SDK_LICENSE: "True"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: APK-Inventario-Listo
+          name: Mi-App-Inventario
           path: bin/*.apk
