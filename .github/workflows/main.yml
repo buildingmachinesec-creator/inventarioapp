@@ -12,13 +12,15 @@ from kivy.utils import platform
 import sqlite3, socket, json, os, threading
 from datetime import datetime
 
+# --- RUTA PARA GUARDAR DATOS ---
 if platform == 'android':
     try:
         from jnius import autoclass
         PythonActivity = autoclass('org.kivy.android.PythonActivity')
         activity = PythonActivity.mActivity
         FOLDER = str(activity.getFilesDir().getAbsolutePath())
-    except: FOLDER = "."
+    except:
+        FOLDER = "."
 else:
     FOLDER = "."
 
@@ -27,13 +29,10 @@ DB = os.path.join(FOLDER, "inventario.db")
 def init_db():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute("""CREATE TABLE IF NOT EXISTS items(
-        id TEXT, categoria TEXT, cantidad INTEGER, fecha TEXT
-    )""")
+    c.execute("CREATE TABLE IF NOT EXISTS items(id TEXT, categoria TEXT, cantidad INTEGER, fecha TEXT)")
     conn.commit()
     conn.close()
 
-# ---------- UI COMPONENTES ----------
 class Tab(MDBoxLayout, MDTabsBase):
     pass
 
@@ -43,116 +42,79 @@ class Panel(MDBoxLayout):
         self.categoria = categoria
         self.app = app_instance
 
-        # Inputs de agregar
-        self.id_input = MDTextField(hint_text="ID / Nombre Producto", mode="rectangle")
-        self.cant_input = MDTextField(hint_text="Cantidad Inicial", input_filter="int", text="1")
-        self.add_widget(self.id_input)
-        self.add_widget(self.cant_input)
+        self.id_in = MDTextField(hint_text="Nombre del Producto", mode="rectangle")
+        self.cant_in = MDTextField(hint_text="Cantidad", input_filter="int", text="1")
+        self.add_widget(self.id_in)
+        self.add_widget(self.cant_in)
         
-        btn_add = MDFillRoundFlatButton(text="AÑADIR NUEVO", pos_hint={"center_x": .5})
-        btn_add.bind(on_release=self.agregar_nuevo)
-        self.add_widget(btn_add)
+        btn = MDFillRoundFlatButton(text="AGREGAR", pos_hint={"center_x": .5})
+        btn.bind(on_release=self.agregar)
+        self.add_widget(btn)
 
         self.scroll = MDScrollView()
         self.lista = MDList()
         self.scroll.add_widget(self.lista)
         self.add_widget(self.scroll)
-        
         Clock.schedule_once(self.refrescar)
 
     def refrescar(self, *args):
         self.lista.clear_widgets()
-        filtro = self.app.root.ids.search_field.text.lower()
-        
+        filtro = self.app.search_field.text.lower()
         conn = sqlite3.connect(DB)
         c = conn.cursor()
         c.execute("SELECT * FROM items WHERE categoria=? AND id LIKE ?", (self.categoria, f"%{filtro}%"))
-        items = c.fetchall()
+        for item in c.fetchall():
+            row = TwoLineAvatarIconListItem(text=f"{item[0]} | Stock: {item[2]}", secondary_text=f"Fecha: {item[3]}")
+            row.add_widget(IconLeftWidget(icon="package-variant"))
+            btn_plus = IconRightWidget(icon="plus")
+            btn_plus.bind(on_release=lambda x, i=item: self.modificar(i, 1))
+            row.add_widget(btn_plus)
+            self.lista.add_widget(row)
         conn.close()
 
-        for item in items:
-            # Item con botones de + y -
-            row = TwoLineAvatarIconListItem(
-                text=f"{item[0]} (Stock: {item[2]})",
-                secondary_text=f"Agregado el: {item[3]}"
-            )
-            
-            # Icono de categoría
-            icon = IconLeftWidget(icon="package-variant")
-            row.add_widget(icon)
-            
-            # Botones de ajuste rápido
-            btn_container = MDBoxLayout(adaptive_width=True, spacing="5dp")
-            
-            btn_plus = MDIconButton(icon="plus-circle", theme_text_color="Custom", text_color=(0,1,0,1))
-            btn_plus.bind(on_release=lambda x, i=item: self.modificar_stock(i, 1))
-            
-            btn_minus = MDIconButton(icon="minus-circle", theme_text_color="Custom", text_color=(1,0,0,1))
-            btn_minus.bind(on_release=lambda x, i=item: self.modificar_stock(i, -1))
-
-            row.add_widget(IconRightWidget(icon="plus", on_release=lambda x, i=item: self.modificar_stock(i, 1)))
-            # Para simplificar en móvil usamos el click largo o botones simples
-            self.lista.add_widget(row)
-
-    def agregar_nuevo(self, *args):
-        if not self.id_input.text: return
+    def agregar(self, *args):
+        if not self.id_in.text: return
         fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
         conn = sqlite3.connect(DB)
         c = conn.cursor()
-        c.execute("INSERT INTO items VALUES (?,?,?,?)", 
-                 (self.id_input.text, self.categoria, int(self.cant_input.text or 0), fecha))
+        c.execute("INSERT INTO items VALUES (?,?,?,?)", (self.id_in.text, self.categoria, int(self.cant_in.text or 0), fecha))
         conn.commit()
         conn.close()
-        self.id_input.text = ""
+        self.id_in.text = ""
         self.app.refrescar_todo()
 
-    def modificar_stock(self, item, cambio):
-        nueva_cant = max(0, item[2] + cambio)
+    def modificar(self, item, cambio):
         conn = sqlite3.connect(DB)
         c = conn.cursor()
-        c.execute("UPDATE items SET cantidad=? WHERE id=? AND categoria=?", (nueva_cant, item[0], item[1]))
+        c.execute("UPDATE items SET cantidad=? WHERE id=? AND categoria=?", (max(0, item[2]+cambio), item[0], item[1]))
         conn.commit()
         conn.close()
         self.app.refrescar_todo()
 
 class InventarioApp(MDApp):
     def build(self):
-        self.theme_cls.primary_palette = "Indigo"
         init_db()
+        self.theme_cls.primary_palette = "Indigo"
+        layout = MDBoxLayout(orientation="vertical")
+        layout.add_widget(MDTopAppBar(title="Inventario Pro"))
         
-        # UI Principal con Buscador Universal
-        self.screen = MDBoxLayout(orientation="vertical")
-        
-        self.toolbar = MDTopAppBar(title="Mi Inventario Pro")
-        self.screen.add_widget(self.toolbar)
-
-        # Buscador Universal
-        search_layout = MDBoxLayout(padding="10dp", size_hint_y=None, height="80dp")
-        self.search_field = MDTextField(
-            id="search_field",
-            hint_text="Buscador Universal (ID / Nombre)",
-            on_text_validate=self.refrescar_todo,
-            mode="fill"
-        )
+        self.search_field = MDTextField(hint_text="Buscador Universal", mode="fill", size_hint_y=None, height="60dp")
         self.search_field.bind(text=self.refrescar_todo)
-        search_layout.add_widget(self.search_field)
-        self.screen.add_widget(search_layout)
+        layout.add_widget(self.search_field)
 
         self.tabs = MDTabs()
         self.tab_list = []
-        for nombre in ["Inventario", "Herramientas", "Otros"]:
-            tab = Tab(title=nombre)
-            panel = Panel(nombre, self)
-            tab.add_widget(panel)
+        for n in ["Inventario", "Herramientas", "Otros"]:
+            tab = Tab(title=n)
+            p = Panel(n, self)
+            tab.add_widget(p)
             self.tabs.add_widget(tab)
-            self.tab_list.append(panel)
-        
-        self.screen.add_widget(self.tabs)
-        return self.screen
+            self.tab_list.append(p)
+        layout.add_widget(self.tabs)
+        return layout
 
     def refrescar_todo(self, *args):
-        for panel in self.tab_list:
-            panel.refrescar()
+        for p in self.tab_list: p.refrescar()
 
 if __name__ == "__main__":
-    InventarioApp().run()
+    InventarioApp().
