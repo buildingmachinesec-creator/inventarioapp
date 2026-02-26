@@ -34,11 +34,9 @@ def init_db():
 class Tab(MDBoxLayout, MDTabsBase):
     pass
 
-# --- EL SECRETO PARA QUE NO SE AMONTONEN ---
+# EL FIX: Dejamos la clase limpia para no romper las propiedades internas de Kivy
 class ContenedorBotonesDerecha(IRightBodyTouch, MDBoxLayout):
-    adaptive_width = True
-    spacing = "15dp" # Espacio entre el + y el -
-    padding = ["10dp", 0, "10dp", 0]
+    pass
 
 class Panel(MDBoxLayout):
     def __init__(self, categoria, app_instance, **kwargs):
@@ -47,7 +45,6 @@ class Panel(MDBoxLayout):
         self.app = app_instance
         self.dialog = None
         
-        # Inputs
         self.id_in = MDTextField(hint_text="Producto", mode="rectangle", size_hint_y=None, height="50dp")
         self.cant_in = MDTextField(hint_text="Cant.", input_filter="int", text="1", size_hint_y=None, height="50dp", size_hint_x=0.3)
         
@@ -85,15 +82,19 @@ class Panel(MDBoxLayout):
             )
             row.add_widget(IconLeftWidget(icon="cube-outline"))
             
-            # Usamos el nuevo contenedor espacioso
-            botones_der = ContenedorBotonesDerecha()
+            # EL FIX: Le pasamos las propiedades de espacio al crear el objeto
+            botones_der = ContenedorBotonesDerecha(
+                adaptive_width=True,
+                spacing="15dp",
+                padding=["10dp", "0dp", "10dp", "0dp"]
+            )
             
             btn_minus = MDIconButton(
                 icon="minus-circle", 
                 icon_size="32sp",
                 theme_text_color="Custom", 
                 text_color=(.9, .2, .2, 1),
-                pos_hint={"center_y": .5} # Centrado verticalmente
+                pos_hint={"center_y": .5}
             )
             btn_minus.bind(on_release=lambda x, i=item: self.modificar_stock(i, -1))
             
@@ -102,7 +103,7 @@ class Panel(MDBoxLayout):
                 icon_size="32sp",
                 theme_text_color="Custom", 
                 text_color=(.1, .6, .1, 1),
-                pos_hint={"center_y": .5} # Centrado verticalmente
+                pos_hint={"center_y": .5}
             )
             btn_plus.bind(on_release=lambda x, i=item: self.modificar_stock(i, 1))
             
