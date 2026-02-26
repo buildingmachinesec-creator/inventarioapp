@@ -64,26 +64,30 @@ class Panel(MDBoxLayout):
         c = conn.cursor()
         c.execute("SELECT * FROM items WHERE categoria=? AND id LIKE ?", (self.categoria, f"%{filtro}%"))
         for item in c.fetchall():
-            # Item con texto y fecha
             row = TwoLineAvatarIconListItem(
                 text=f"{item[0]} | Stock: {item[2]}", 
                 secondary_text=f"Modificado: {item[3]}"
             )
             row.add_widget(IconLeftWidget(icon="package-variant"))
             
-            # Contenedor para botones de + y -
-            btns_cont = MDBoxLayout(adaptive_width=True, spacing="5dp")
+            # Contenedor para botones de acción
+            btns_cont = MDBoxLayout(adaptive_width=True, spacing="2dp")
             
             # BOTÓN MENOS (-1)
-            btn_m = MDIconButton(icon="minus-circle", theme_text_color="Custom", text_color=(1, 0, 0, 1))
+            btn_m = MDIconButton(icon="minus-circle-outline", theme_text_color="Custom", text_color=(.8, .2, .2, 1))
             btn_m.bind(on_release=lambda x, i=item: self.modificar(i, -1))
             
             # BOTÓN MÁS (+1)
-            btn_p = MDIconButton(icon="plus-circle", theme_text_color="Custom", text_color=(0, .6, 0, 1))
+            btn_p = MDIconButton(icon="plus-circle-outline", theme_text_color="Custom", text_color=(.2, .6, .2, 1))
             btn_p.bind(on_release=lambda x, i=item: self.modificar(i, 1))
+
+            # BOTÓN ELIMINAR PRODUCTO (Basura)
+            btn_del = MDIconButton(icon="trash-can", theme_text_color="Custom", text_color=(1, 0, 0, 1))
+            btn_del.bind(on_release=lambda x, i=item: self.eliminar_producto(i))
             
             btns_cont.add_widget(btn_m)
             btns_cont.add_widget(btn_p)
+            btns_cont.add_widget(btn_del)
             row.add_widget(btns_cont)
             
             self.lista.add_widget(row)
@@ -101,12 +105,20 @@ class Panel(MDBoxLayout):
         self.app.refrescar_todo()
 
     def modificar(self, item, cambio):
-        # Evita que el stock sea menor a 0
         nueva_cant = max(0, item[2] + cambio)
         fecha_act = datetime.now().strftime("%d/%m/%Y %H:%M")
         conn = sqlite3.connect(DB)
         c = conn.cursor()
         c.execute("UPDATE items SET cantidad=?, fecha=? WHERE id=? AND categoria=?", (nueva_cant, fecha_act, item[0], item[1]))
+        conn.commit()
+        conn.close()
+        self.app.refrescar_todo()
+
+    def eliminar_producto(self, item):
+        # Borra el registro completo de la DB
+        conn = sqlite3.connect(DB)
+        c = conn.cursor()
+        c.execute("DELETE FROM items WHERE id=? AND categoria=?", (item[0], item[1]))
         conn.commit()
         conn.close()
         self.app.refrescar_todo()
@@ -121,7 +133,7 @@ class InventarioApp(MDApp):
         layout.add_widget(MDTopAppBar(title="Inventario Pro"))
         
         # BUSCADOR UNIVERSAL
-        self.search_bar = MDTextField(hint_text="Buscador Universal (ID / Nombre)", mode="fill", size_hint_y=None, height="60dp")
+        self.search_bar = MDTextField(hint_text="Buscador Universal (Nombre)", mode="fill", size_hint_y=None, height="60dp")
         self.search_bar.bind(text=self.refrescar_todo)
         layout.add_widget(self.search_bar)
         
